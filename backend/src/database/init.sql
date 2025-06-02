@@ -1,0 +1,11 @@
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Создаем администратора (пароль: admin123)
+INSERT INTO users (username, password) 
+VALUES ('admin', '$2a$10$X7UrH5X5Y5Y5Y5Y5Y5Y5Y.5Y5Y5Y5Y5Y5Y5Y5Y5Y5Y5Y5Y5Y5Y')
+ON DUPLICATE KEY UPDATE username = username; 
