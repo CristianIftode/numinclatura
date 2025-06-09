@@ -10,6 +10,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { logout } from './store/slices/authSlice';
 import Categories from './pages/Categories';
+import CurrencyRates from './pages/CurrencyRates';
 
 // Временный компонент для главной страницы
 const Home = () => <div className="p-4">Главная страница</div>;
@@ -38,6 +39,7 @@ const AppContent = () => {
                 <li><Link to="/" className='text-white hover:text-gray-200'>Главная</Link></li>
                 <li><Link to="/profile" className='text-white hover:text-gray-200'>Профиль</Link></li>
                 <li><Link to="/currencies" className='text-white hover:text-gray-200'>Справочник валют</Link></li>
+                <li><Link to="/currency-rates" className='text-white hover:text-gray-200'>Курсы валют</Link></li>
                 <li><Link to="/categories" className='text-white hover:text-gray-200'>Справочник категорий</Link></li>
               </ul>
             </div>
@@ -77,6 +79,14 @@ const AppContent = () => {
             element={
               <ProtectedRoute>
                 <Currencies />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/currency-rates"
+            element={
+              <ProtectedRoute>
+                <CurrencyRates />
               </ProtectedRoute>
             }
           />

@@ -21,11 +21,13 @@ router.post('/', authenticateToken, async (req, res) => {
     const { name, code, is_default } = req.body;
 
     if (!name || !code) {
-      return res.status(400).json({ message: 'Название и код валюты обязательны' });
+      res.status(400).json({ message: 'Название и код валюты обязательны' });
+      return;
     }
 
     if (code.length !== 3) {
-      return res.status(400).json({ message: 'Код валюты должен состоять из 3 символов' });
+      res.status(400).json({ message: 'Код валюты должен состоять из 3 символов' });
+      return;
     }
 
     const [result] = await pool.query(
@@ -56,11 +58,13 @@ router.put('/:id', authenticateToken, async (req, res) => {
     const { name, code, is_default } = req.body;
 
     if (!name || !code) {
-      return res.status(400).json({ message: 'Название и код валюты обязательны' });
+      res.status(400).json({ message: 'Название и код валюты обязательны' });
+      return;
     }
 
     if (code.length !== 3) {
-      return res.status(400).json({ message: 'Код валюты должен состоять из 3 символов' });
+      res.status(400).json({ message: 'Код валюты должен состоять из 3 символов' });
+      return;
     }
 
     await pool.query(
@@ -74,7 +78,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
     ) as any[];
 
     if (updatedCurrency.length === 0) {
-      return res.status(404).json({ message: 'Валюта не найдена' });
+      res.status(404).json({ message: 'Валюта не найдена' });
+      return;
     }
 
     res.json(updatedCurrency[0]);
@@ -99,7 +104,8 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     ) as any[];
 
     if (currency.length === 0) {
-      return res.status(404).json({ message: 'Валюта не найдена' });
+      res.status(404).json({ message: 'Валюта не найдена' });
+      return;
     }
 
     await pool.query('DELETE FROM currencies WHERE id = ?', [id]);

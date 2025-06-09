@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '../store';
 import { fetchCurrencies, addCurrency, updateCurrency, deleteCurrency } from '../store/slices/currencySlice';
 import { useForm } from 'react-hook-form';
+import { Link } from 'react-router-dom';
 
 interface Currency {
   id: number;
@@ -76,18 +77,26 @@ const Currencies: React.FC = () => {
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Справочник валют</h1>
-        {!isAddingNew && (
-          <button
-            onClick={() => {
-              setIsAddingNew(true);
-              setEditingId(null);
-              reset();
-            }}
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
+        <div className="flex gap-4">
+          <Link
+            to="/currency-rates"
+            className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors"
           >
-            Добавить валюту
-          </button>
-        )}
+            Таблица курсов валют
+          </Link>
+          {!isAddingNew && (
+            <button
+              onClick={() => {
+                setIsAddingNew(true);
+                setEditingId(null);
+                reset();
+              }}
+              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
+            >
+              Добавить валюту
+            </button>
+          )}
+        </div>
       </div>
 
       {error && (

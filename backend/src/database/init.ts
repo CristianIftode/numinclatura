@@ -31,6 +31,20 @@ const initDatabase = async () => {
       )
     `);
 
+    // Создание таблицы курсов валют
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS currency_rates (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        currency_id INT NOT NULL,
+        rate_date DATE NOT NULL,
+        rate_value DECIMAL(20, 6) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (currency_id) REFERENCES currencies(id) ON DELETE CASCADE,
+        UNIQUE KEY unique_currency_date (currency_id, rate_date)
+      )
+    `);
+
     // Создание таблицы категорий
     await pool.query(`
       CREATE TABLE IF NOT EXISTS categories (

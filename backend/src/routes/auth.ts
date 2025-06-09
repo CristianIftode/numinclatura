@@ -57,13 +57,15 @@ router.post('/change-password', authenticateToken, async (req: any, res) => {
     const user = users[0];
 
     if (!user) {
-      return res.status(404).json({ message: 'Пользователь не найден' });
+      res.status(404).json({ message: 'Пользователь не найден' });
+      return;
     }
 
     // Проверяем текущий пароль
     const isValidPassword = await bcrypt.compare(currentPassword, user.password);
     if (!isValidPassword) {
-      return res.status(401).json({ message: 'Неверный текущий пароль' });
+      res.status(401).json({ message: 'Неверный текущий пароль' });
+      return;
     }
 
     // Хешируем новый пароль

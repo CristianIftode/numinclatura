@@ -8,12 +8,13 @@ interface AuthRequest extends Request {
   };
 }
 
-export const authenticateToken = (req: AuthRequest, res: Response, next: NextFunction) => {
+export const authenticateToken = (req: AuthRequest, res: Response, next: NextFunction): void => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
-    return res.status(401).json({ message: 'Отсутствует токен авторизации' });
+    res.status(401).json({ message: 'Отсутствует токен авторизации' });
+    return;
   }
 
   try {
@@ -24,7 +25,8 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
     req.user = user;
     next();
   } catch (error) {
-    return res.status(403).json({ message: 'Недействительный токен' });
+    res.status(403).json({ message: 'Недействительный токен' });
+    return;
   }
 };
 
