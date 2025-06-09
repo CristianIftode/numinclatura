@@ -11,6 +11,9 @@ import { useDispatch } from 'react-redux';
 import { logout } from './store/slices/authSlice';
 import Categories from './pages/Categories';
 import CurrencyRates from './pages/CurrencyRates';
+import Countries from './pages/Countries';
+import Seasonality from './pages/Seasonality';
+import Nomenclature from './pages/Nomenclature';
 
 // Временный компонент для главной страницы
 const Home = () => <div className="p-4">Главная страница</div>;
@@ -41,6 +44,9 @@ const AppContent = () => {
                 <li><Link to="/currencies" className='text-white hover:text-gray-200'>Справочник валют</Link></li>
                 <li><Link to="/currency-rates" className='text-white hover:text-gray-200'>Курсы валют</Link></li>
                 <li><Link to="/categories" className='text-white hover:text-gray-200'>Справочник категорий</Link></li>
+                <li><Link to="/countries" className='text-white hover:text-gray-200'>Справочник стран</Link></li>
+                <li><Link to="/seasonality" className='text-white hover:text-gray-200'>Шаблоны сезонности</Link></li>
+                <li><Link to="/nomenclature" className='text-white hover:text-gray-200'>Номенклатура</Link></li>
               </ul>
             </div>
           </div>
@@ -95,6 +101,30 @@ const AppContent = () => {
             element={
               <ProtectedRoute>
                 <Categories />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/countries"
+            element={
+              <ProtectedRoute>
+                <Countries />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/seasonality"
+            element={
+              <ProtectedRoute>
+                <Seasonality />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/nomenclature"
+            element={
+              <ProtectedRoute>
+                <Nomenclature />
               </ProtectedRoute>
             }
           />
