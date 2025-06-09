@@ -3,24 +3,29 @@ import jwt from 'jsonwebtoken';
 
 interface AuthRequest extends Request {
   user?: {
+    id: number;
     username: string;
   };
 }
 
-export const authMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {
+export const authenticateToken = (req: AuthRequest, res: Response, next: NextFunction) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ message: 'Отсутствует токен авторизации' });
+  }
+
   try {
-    const token = req.headers.authorization?.split(' ')[1];
-
-    if (!token) {
-      res.status(401).json({ message: 'Требуется авторизация' });
-      return;
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as { username: string };
-    req.user = decoded;
+    const user = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as {
+      id: number;
+      username: string;
+    };
+    req.user = user;
     next();
   } catch (error) {
-    res.status(401).json({ message: 'Недействительный токен' });
-    return;
+    return res.status(403).json({ message: 'Недействительный токен' });
   }
-}; 
+};
+
+export default authenticateToken; 

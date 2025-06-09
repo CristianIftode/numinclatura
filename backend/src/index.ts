@@ -2,7 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import authRoutes from './routes/auth';
 import testRoutes from './routes/test';
-import { authMiddleware } from './middleware/auth';
+import currencyRoutes from './routes/currencies';
+import categoryRoutes from './routes/categories';
+import authenticateToken from './middleware/auth';
 import initDatabase from './database/init';
 
 const app = express();
@@ -13,10 +15,12 @@ app.use(express.json());
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/currencies', currencyRoutes);
+app.use('/api/categories', categoryRoutes);
 app.use('/api', testRoutes);
 
 // Защищенный маршрут для проверки
-app.get('/api/protected', authMiddleware, (req, res) => {
+app.get('/api/protected', authenticateToken, (req, res) => {
   res.json({ message: 'Доступ разрешен' });
 });
 

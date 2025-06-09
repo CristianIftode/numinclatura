@@ -1,8 +1,9 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import axios from 'axios';
+import axios from '../../config/axios';
 
-interface AuthState {
+export interface AuthState {
   token: string | null;
+  username: string | null;
   isAuthenticated: boolean;
   loading: boolean;
   error: string | null;
@@ -13,8 +14,14 @@ interface LoginCredentials {
   password: string;
 }
 
+interface PasswordChangeCredentials {
+  currentPassword: string;
+  newPassword: string;
+}
+
 const initialState: AuthState = {
   token: localStorage.getItem('token'),
+  username: localStorage.getItem('username'),
   isAuthenticated: !!localStorage.getItem('token'),
   loading: false,
   error: null,
@@ -23,10 +30,22 @@ const initialState: AuthState = {
 export const login = createAsyncThunk(
   'auth/login',
   async (credentials: LoginCredentials) => {
-    const response = await axios.post('http://localhost:3001/api/auth/login', credentials);
-    const { token } = response.data;
+    const response = await axios.post('/api/auth/login', credentials);
+    const { token, username } = response.data;
     localStorage.setItem('token', token);
-    return token;
+    localStorage.setItem('username', username);
+    return { token, username };
+  }
+);
+
+export const changePassword = createAsyncThunk(
+  'auth/changePassword',
+  async (credentials: PasswordChangeCredentials) => {
+    const response = await axios.post(
+      '/api/auth/change-password',
+      credentials
+    );
+    return response.data;
   }
 );
 
@@ -36,7 +55,9 @@ const authSlice = createSlice({
   reducers: {
     logout: (state) => {
       localStorage.removeItem('token');
+      localStorage.removeItem('username');
       state.token = null;
+      state.username = null;
       state.isAuthenticated = false;
     },
     clearError: (state) => {
@@ -52,11 +73,23 @@ const authSlice = createSlice({
       .addCase(login.fulfilled, (state, action) => {
         state.loading = false;
         state.isAuthenticated = true;
-        state.token = action.payload;
+        state.token = action.payload.token;
+        state.username = action.payload.username;
       })
       .addCase(login.rejected, (state, action) => {
         state.loading = false;
         state.error = action.error.message || 'Ошибка авторизации';
+      })
+      .addCase(changePassword.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(changePassword.fulfilled, (state) => {
+        state.loading = false;
+      })
+      .addCase(changePassword.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Ошибка при смене пароля';
       });
   },
 });

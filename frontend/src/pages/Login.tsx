@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { login } from '../store/slices/authSlice';
+import { AppDispatch } from '../store';
 
 interface LoginForm {
   username: string;
@@ -10,7 +11,7 @@ interface LoginForm {
 }
 
 const Login: React.FC = () => {
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>();
 
