@@ -61,7 +61,7 @@ const AppContent = () => {
         </div>
       )}
 
-      <div className='w-full'>
+      <div className='w-full h-screen overflow-y-auto'>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route

@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import DatePicker from 'react-datepicker';
-import "react-datepicker/dist/react-datepicker.css";
 import { AppDispatch } from '../store';
+import { DateRange, Range, RangeKeyDict } from 'react-date-range';
+import { addDays } from 'date-fns';
+import ru from 'date-fns/locale/ru';
+import 'react-date-range/dist/styles.css';
+import 'react-date-range/dist/theme/default.css';
 import {
   fetchSeasonality,
   addSeasonality,
@@ -21,6 +24,8 @@ interface SeasonalityTemplate {
   periods: DatePeriod[];
 }
 
+type DateRangeType = Range;
+
 const Seasonality: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const templates = useSelector((state: any) => state.seasonality.list);
@@ -30,6 +35,11 @@ const Seasonality: React.FC = () => {
   const [editingTemplate, setEditingTemplate] = useState<SeasonalityTemplate | null>(null);
   const [templateName, setTemplateName] = useState('');
   const [periods, setPeriods] = useState<DatePeriod[]>([]);
+  const [currentRange, setCurrentRange] = useState<DateRangeType>({
+    startDate: new Date(),
+    endDate: addDays(new Date(), 7),
+    key: 'selection'
+  });
 
   useEffect(() => {
     if (status === 'idle') {
@@ -38,18 +48,13 @@ const Seasonality: React.FC = () => {
   }, [status, dispatch]);
 
   const handleAddPeriod = () => {
-    setPeriods([...periods, { startDate: '', endDate: '' }]);
-  };
-
-  const handlePeriodChange = (index: number, field: 'startDate' | 'endDate', value: Date | null) => {
-    if (value) {
-      const newPeriods = [...periods];
-      newPeriods[index] = {
-        ...newPeriods[index],
-        [field]: value.toISOString().split('T')[0]
-      };
-      setPeriods(newPeriods);
-    }
+    if (!currentRange.startDate || !currentRange.endDate) return;
+    
+    const newPeriod = {
+      startDate: currentRange.startDate.toISOString().split('T')[0],
+      endDate: currentRange.endDate.toISOString().split('T')[0]
+    };
+    setPeriods([...periods, newPeriod]);
   };
 
   const handleRemovePeriod = (index: number) => {
@@ -85,6 +90,15 @@ const Seasonality: React.FC = () => {
     setEditingTemplate(template);
     setTemplateName(template.name);
     setPeriods(template.periods);
+    if (template.periods.length > 0) {
+      const startDate = new Date(template.periods[0].startDate);
+      const endDate = new Date(template.periods[0].endDate);
+      setCurrentRange({
+        startDate,
+        endDate,
+        key: 'selection'
+      });
+    }
     setIsAddingNew(true);
   };
 
@@ -103,6 +117,12 @@ const Seasonality: React.FC = () => {
     setEditingTemplate(null);
     setTemplateName('');
     setPeriods([]);
+    const today = new Date();
+    setCurrentRange({
+      startDate: today,
+      endDate: addDays(today, 7),
+      key: 'selection'
+    });
   };
 
   return (
@@ -137,41 +157,41 @@ const Seasonality: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm text-gray-600 mb-2">Периоды дат</label>
-              {periods.map((period, index) => (
-                <div key={index} className="flex gap-4 mb-2 items-center">
-                  <div>
-                    <label className="block text-sm text-gray-600 mb-1">Начало</label>
-                    <DatePicker
-                      selected={period.startDate ? new Date(period.startDate) : null}
-                      onChange={(date) => handlePeriodChange(index, 'startDate', date)}
-                      dateFormat="dd.MM.yyyy"
-                      className="p-2 border rounded"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-gray-600 mb-1">Конец</label>
-                    <DatePicker
-                      selected={period.endDate ? new Date(period.endDate) : null}
-                      onChange={(date) => handlePeriodChange(index, 'endDate', date)}
-                      dateFormat="dd.MM.yyyy"
-                      className="p-2 border rounded"
-                    />
-                  </div>
-                  <button
-                    onClick={() => handleRemovePeriod(index)}
-                    className="mt-6 text-red-600 hover:text-red-900"
-                  >
-                    Удалить
-                  </button>
+              <label className="block text-sm text-gray-600 mb-2">Выберите период</label>
+              <div className="flex flex-col items-start gap-4">
+                <div className="border rounded-lg shadow-sm">
+                  <DateRange
+                    editableDateInputs={true}
+                    onChange={(item: RangeKeyDict) => setCurrentRange(item.selection)}
+                    moveRangeOnFirstSelection={false}
+                    ranges={[currentRange]}
+                    locale={ru}
+                  />
                 </div>
-              ))}
-              <button
-                onClick={handleAddPeriod}
-                className="mt-2 text-blue-600 hover:text-blue-900"
-              >
-                + Добавить период
-              </button>
+                <button
+                  onClick={handleAddPeriod}
+                  className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors"
+                >
+                  Добавить выбранный период
+                </button>
+              </div>
+
+              <div className="mt-6">
+                <label className="block text-sm text-gray-600 mb-2">Добавленные периоды:</label>
+                {periods.map((period, index) => (
+                  <div key={index} className="flex justify-between items-center p-2 bg-gray-50 rounded mb-2">
+                    <span className="text-sm">
+                      {new Date(period.startDate).toLocaleDateString()} - {new Date(period.endDate).toLocaleDateString()}
+                    </span>
+                    <button
+                      onClick={() => handleRemovePeriod(index)}
+                      className="text-red-600 hover:text-red-900"
+                    >
+                      Удалить
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div className="flex gap-2">

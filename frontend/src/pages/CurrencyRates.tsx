@@ -3,8 +3,10 @@ import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '../store';
 import { useForm } from 'react-hook-form';
 import { Link } from 'react-router-dom';
-import DatePicker from 'react-datepicker';
-import "react-datepicker/dist/react-datepicker.css";
+import { DateRange } from 'react-date-range';
+import 'react-date-range/dist/styles.css';
+import 'react-date-range/dist/theme/default.css';
+import ru from 'date-fns/locale/ru';
 import { fetchCurrencyRates, addCurrencyRate, updateCurrencyRate, deleteCurrencyRate } from '../store/slices/currencyRatesSlice';
 import { fetchCurrencies } from '../store/slices/currencySlice';
 
@@ -169,16 +171,24 @@ const CurrencyRates: React.FC = () => {
 
             <div>
               <label className="block text-sm text-gray-600 mb-1">Дата</label>
-              <DatePicker
-                selected={selectedDate}
-                onChange={(date: Date | null) => {
-                  if (date) {
-                    setValue('rate_date', date);
+              <DateRange
+                ranges={[
+                  {
+                    startDate: selectedDate,
+                    endDate: selectedDate,
+                    key: 'selection'
+                  }
+                ]}
+                onChange={(ranges) => {
+                  if (ranges.selection.startDate) {
+                    setValue('rate_date', ranges.selection.startDate);
                   }
                 }}
+                moveRangeOnFirstSelection={false}
                 className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                dateFormat="dd.MM.yyyy"
-                required
+                locale={ru}
+                months={1}
+                direction="horizontal"
               />
               {errors.rate_date && (
                 <p className="text-red-500 text-sm mt-1">{errors.rate_date.message}</p>

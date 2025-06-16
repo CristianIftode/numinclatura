@@ -2,7 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch } from '../store';
 import DatePicker from 'react-datepicker';
+import { DateRange } from 'react-date-range';
 import "react-datepicker/dist/react-datepicker.css";
+import 'react-date-range/dist/styles.css';
+import 'react-date-range/dist/theme/default.css';
+import ru from 'date-fns/locale/ru';
 import {
   fetchNomenclature,
   addNomenclature,
@@ -15,8 +19,8 @@ import { CountryInfo, NomenclatureItem } from '../types/nomenclature';
 
 // Form interfaces (using Date objects)
 interface FormSeasonalityPeriod {
-  start_date: Date | null;
-  end_date: Date | null;
+  start_date: Date | undefined;
+  end_date: Date | undefined;
 }
 
 interface FormSeasonality {
@@ -28,7 +32,7 @@ interface FormCountry {
   country_id: number;
   sku_code: string;
   type: 'regular' | 'exclusive';
-  is_new_until: Date | null;
+  is_new_until: Date | undefined;
   seasonality: FormSeasonality;
 }
 
@@ -78,7 +82,7 @@ const Nomenclature: React.FC = () => {
         country_id: 0,
         sku_code: '',
         type: 'regular',
-        is_new_until: null,
+        is_new_until: undefined,
         seasonality: {
           template_id: null,
           periods: []
@@ -129,8 +133,8 @@ const Nomenclature: React.FC = () => {
   const handleAddPeriod = (countryIndex: number) => {
     const newForms = [...countryForms];
     newForms[countryIndex].seasonality.periods.push({
-      start_date: null,
-      end_date: null
+      start_date: undefined,
+      end_date: undefined
     });
     setCountryForms(newForms);
   };
@@ -141,7 +145,7 @@ const Nomenclature: React.FC = () => {
     setCountryForms(newForms);
   };
 
-  const handlePeriodChange = (countryIndex: number, periodIndex: number, field: keyof FormSeasonalityPeriod, value: Date | null) => {
+  const handlePeriodChange = (countryIndex: number, periodIndex: number, field: keyof FormSeasonalityPeriod, value: Date | undefined) => {
     const newForms = [...countryForms];
     newForms[countryIndex].seasonality.periods[periodIndex][field] = value;
     setCountryForms(newForms);
@@ -320,11 +324,13 @@ const Nomenclature: React.FC = () => {
                       <label className="block text-sm text-gray-600 mb-1">Новинка до</label>
                       <DatePicker
                         selected={form.is_new_until}
-                        onChange={(date) => handleCountryChange(countryIndex, 'is_new_until', date)}
-                        showTimeSelect
-                        dateFormat="dd.MM.yyyy HH:mm"
+                        onChange={(date: Date | null) => {
+                          if (date) {
+                            handleCountryChange(countryIndex, 'is_new_until', date);
+                          }
+                        }}
                         className="w-full p-2 border rounded"
-                        placeholderText="Выберите дату"
+                        dateFormat="dd.MM.yyyy"
                       />
                     </div>
                   </div>
@@ -379,23 +385,22 @@ const Nomenclature: React.FC = () => {
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                               <div>
-                                <label className="block text-sm text-gray-600 mb-1">Начало периода</label>
-                                <DatePicker
-                                  selected={period.start_date}
-                                  onChange={(date) => handlePeriodChange(countryIndex, periodIndex, 'start_date', date)}
-                                  dateFormat="dd.MM.yyyy"
-                                  className="w-full p-2 border rounded"
-                                  placeholderText="Выберите дату"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm text-gray-600 mb-1">Конец периода</label>
-                                <DatePicker
-                                  selected={period.end_date}
-                                  onChange={(date) => handlePeriodChange(countryIndex, periodIndex, 'end_date', date)}
-                                  dateFormat="dd.MM.yyyy"
-                                  className="w-full p-2 border rounded"
-                                  placeholderText="Выберите дату"
+                                <label className="block text-sm text-gray-600 mb-1">Период</label>
+                                <DateRange
+                                  ranges={[{
+                                    startDate: period.start_date,
+                                    endDate: period.end_date,
+                                    key: 'selection'
+                                  }]}
+                                  onChange={(ranges) => {
+                                    handlePeriodChange(countryIndex, periodIndex, 'start_date', ranges.selection.startDate);
+                                    handlePeriodChange(countryIndex, periodIndex, 'end_date', ranges.selection.endDate);
+                                  }}
+                                  moveRangeOnFirstSelection={false}
+                                  className="w-full"
+                                  locale={ru}
+                                  months={1}
+                                  direction="horizontal"
                                 />
                               </div>
                             </div>
