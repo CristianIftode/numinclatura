@@ -1,18 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '../store';
-import { fetchCurrencies, addCurrency, updateCurrency, deleteCurrency } from '../store/slices/currencySlice';
+import { Currency, fetchCurrencies, addCurrency, updateCurrency, deleteCurrency } from '../store/slices/currencySlice';
 import { useForm } from 'react-hook-form';
 import { Link } from 'react-router-dom';
-
-interface Currency {
-  id: number;
-  name: string;
-  code: string;
-  is_default: boolean;
-  created_at: string;
-  updated_at: string;
-}
 
 interface CurrencyForm {
   name: string;
@@ -22,9 +13,9 @@ interface CurrencyForm {
 
 const Currencies: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
-  const currencies = useSelector((state: RootState) => state.currencies.items);
-  const loading = useSelector((state: RootState) => state.currencies.loading);
-  const error = useSelector((state: RootState) => state.currencies.error);
+  const currencies = useSelector((state: RootState) => state.currency.items);
+  const loading = useSelector((state: RootState) => state.currency.loading);
+  const error = useSelector((state: RootState) => state.currency.error);
   
   const [editingId, setEditingId] = useState<number | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
@@ -190,7 +181,7 @@ const Currencies: React.FC = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {currencies.map((currency) => (
+            {currencies.map((currency: Currency) => (
               <tr key={currency.id}>
                 <td className="px-6 py-4 whitespace-nowrap">{currency.name}</td>
                 <td className="px-6 py-4 whitespace-nowrap">{currency.code}</td>

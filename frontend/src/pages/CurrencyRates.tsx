@@ -9,6 +9,8 @@ import 'react-date-range/dist/theme/default.css';
 import ru from 'date-fns/locale/ru';
 import { fetchCurrencyRates, addCurrencyRate, updateCurrencyRate, deleteCurrencyRate } from '../store/slices/currencyRatesSlice';
 import { fetchCurrencies } from '../store/slices/currencySlice';
+import DatePicker from 'react-datepicker';
+import { Currency } from '../store/slices/currencySlice';
 
 interface CurrencyRate {
   id: number;
@@ -35,7 +37,7 @@ interface CurrencyRateFormData {
 
 const CurrencyRates: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
-  const currencies = useSelector((state: RootState) => state.currencies.items);
+  const currencies = useSelector((state: RootState) => state.currency.items);
   const rates = useSelector((state: RootState) => state.currencyRates.items);
   const loading = useSelector((state: RootState) => state.currencyRates.loading);
   const error = useSelector((state: RootState) => state.currencyRates.error);
@@ -108,8 +110,8 @@ const CurrencyRates: React.FC = () => {
     reset();
   };
 
-  const defaultCurrency = currencies.find(c => c.is_default);
-  const nonDefaultCurrencies = currencies.filter(c => !c.is_default);
+  const defaultCurrency = currencies.find((c: Currency) => c.is_default);
+  const nonDefaultCurrencies = currencies.filter((c: Currency) => !c.is_default);
 
   return (
     <div className="p-8">
@@ -158,7 +160,7 @@ const CurrencyRates: React.FC = () => {
                 className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Выберите валюту</option>
-                {nonDefaultCurrencies.map(currency => (
+                {nonDefaultCurrencies.map((currency: Currency) => (
                   <option key={currency.id} value={currency.id}>
                     {currency.name} ({currency.code})
                   </option>
@@ -171,24 +173,16 @@ const CurrencyRates: React.FC = () => {
 
             <div>
               <label className="block text-sm text-gray-600 mb-1">Дата</label>
-              <DateRange
-                ranges={[
-                  {
-                    startDate: selectedDate,
-                    endDate: selectedDate,
-                    key: 'selection'
-                  }
-                ]}
-                onChange={(ranges) => {
-                  if (ranges.selection.startDate) {
-                    setValue('rate_date', ranges.selection.startDate);
+              <DatePicker
+                selected={selectedDate}
+                onChange={(date: Date | null) => {
+                  if (date) {
+                    setValue('rate_date', date);
                   }
                 }}
-                moveRangeOnFirstSelection={false}
                 className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 locale={ru}
-                months={1}
-                direction="horizontal"
+                dateFormat="dd.MM.yyyy"
               />
               {errors.rate_date && (
                 <p className="text-red-500 text-sm mt-1">{errors.rate_date.message}</p>
@@ -256,7 +250,7 @@ const CurrencyRates: React.FC = () => {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {rates.map((rate: CurrencyRate) => {
-              const currency = currencies.find(c => c.id === rate.currency_id);
+              const currency = currencies.find((c: Currency) => c.id === rate.currency_id);
               return (
                 <tr key={rate.id}>
                   <td className="px-6 py-4 whitespace-nowrap">

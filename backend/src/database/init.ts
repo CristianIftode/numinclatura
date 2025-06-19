@@ -67,6 +67,16 @@ const initDatabase = async () => {
       )
     `);
 
+    // Создание таблицы брендов
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS brands (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )
+    `);
+
     // Создание таблицы шаблонов сезонности
     await pool.query(`
       CREATE TABLE IF NOT EXISTS seasonality (
@@ -82,8 +92,10 @@ const initDatabase = async () => {
       CREATE TABLE IF NOT EXISTS seasonality_periods (
         id INT AUTO_INCREMENT PRIMARY KEY,
         seasonality_id INT NOT NULL,
-        start_date DATE NOT NULL,
-        end_date DATE NOT NULL,
+        start_day_of_year INT NOT NULL,
+        end_day_of_year INT NOT NULL,
+        markup_percentage DECIMAL(5, 2) NULL,
+        tolerance_percentage DECIMAL(5, 2) NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (seasonality_id) REFERENCES seasonality(id) ON DELETE CASCADE
@@ -106,14 +118,18 @@ const initDatabase = async () => {
         id INT AUTO_INCREMENT PRIMARY KEY,
         nomenclature_id INT NOT NULL,
         country_id INT NOT NULL,
+        brand_id INT NULL,
         sku_code VARCHAR(255) NOT NULL,
         type ENUM('regular', 'exclusive') NOT NULL DEFAULT 'regular',
         is_new_until DATETIME NULL,
+        seasonality_template_id INT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (nomenclature_id) REFERENCES nomenclature(id) ON DELETE CASCADE,
         FOREIGN KEY (country_id) REFERENCES countries(id) ON DELETE CASCADE,
-        UNIQUE KEY unique_sku_per_country (country_id, sku_code)
+        FOREIGN KEY (brand_id) REFERENCES brands(id) ON DELETE SET NULL,
+        FOREIGN KEY (seasonality_template_id) REFERENCES seasonality(id) ON DELETE SET NULL,
+        UNIQUE KEY unique_sku_per_country_brand (country_id, brand_id, sku_code)
       )
     `);
 
@@ -122,17 +138,25 @@ const initDatabase = async () => {
       CREATE TABLE IF NOT EXISTS nomenclature_seasonality (
         id INT AUTO_INCREMENT PRIMARY KEY,
         nomenclature_country_id INT NOT NULL,
-        seasonality_template_id INT NULL,
-        start_date DATE NULL,
-        end_date DATE NULL,
+        start_day_of_year INT NOT NULL,
+        end_day_of_year INT NOT NULL,
+        markup_percentage DECIMAL(5, 2) NULL,
+        tolerance_percentage DECIMAL(5, 2) NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        FOREIGN KEY (nomenclature_country_id) REFERENCES nomenclature_country(id) ON DELETE CASCADE,
-        FOREIGN KEY (seasonality_template_id) REFERENCES seasonality(id) ON DELETE SET NULL,
-        CHECK (
-          (seasonality_template_id IS NOT NULL AND start_date IS NULL AND end_date IS NULL) OR
-          (seasonality_template_id IS NULL AND start_date IS NOT NULL AND end_date IS NOT NULL)
-        )
+        FOREIGN KEY (nomenclature_country_id) REFERENCES nomenclature_country(id) ON DELETE CASCADE
+      )
+    `);
+
+    // Создание таблицы для контроля стран
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS country_control (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        country_id INT NOT NULL UNIQUE,
+        is_controlled BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (country_id) REFERENCES countries(id) ON DELETE CASCADE
       )
     `);
 

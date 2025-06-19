@@ -14,6 +14,8 @@ import CurrencyRates from './pages/CurrencyRates';
 import Countries from './pages/Countries';
 import Seasonality from './pages/Seasonality';
 import Nomenclature from './pages/Nomenclature';
+import CountryControl from './pages/CountryControl';
+import Brands from './pages/Brands';
 
 // Временный компонент для главной страницы
 const Home = () => <div className="p-4">Главная страница</div>;
@@ -45,8 +47,10 @@ const AppContent = () => {
                 <li><Link to="/currency-rates" className='text-white hover:text-gray-200'>Курсы валют</Link></li>
                 <li><Link to="/categories" className='text-white hover:text-gray-200'>Справочник категорий</Link></li>
                 <li><Link to="/countries" className='text-white hover:text-gray-200'>Справочник стран</Link></li>
+                <li><Link to="/brands" className='text-white hover:text-gray-200'>Справочник брендов</Link></li>
                 <li><Link to="/seasonality" className='text-white hover:text-gray-200'>Шаблоны сезонности</Link></li>
                 <li><Link to="/nomenclature" className='text-white hover:text-gray-200'>Номенклатура</Link></li>
+                <li><Link to="/country-control" className='text-white hover:text-gray-200'>Виды контроля</Link></li>
               </ul>
             </div>
           </div>
@@ -113,6 +117,14 @@ const AppContent = () => {
             }
           />
           <Route
+            path="/brands"
+            element={
+              <ProtectedRoute>
+                <Brands />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/seasonality"
             element={
               <ProtectedRoute>
@@ -125,6 +137,14 @@ const AppContent = () => {
             element={
               <ProtectedRoute>
                 <Nomenclature />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/country-control"
+            element={
+              <ProtectedRoute>
+                <CountryControl />
               </ProtectedRoute>
             }
           />

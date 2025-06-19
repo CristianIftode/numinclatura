@@ -11,14 +11,12 @@ router.get('/', authenticateToken, async (req, res) => {
       SELECT s.*, 
              COALESCE(
                JSON_ARRAYAGG(
-                 CASE 
-                   WHEN sp.id IS NOT NULL THEN
-                     JSON_OBJECT(
-                       'startDate', DATE_FORMAT(sp.start_date, '%Y-%m-%d'),
-                       'endDate', DATE_FORMAT(sp.end_date, '%Y-%m-%d')
-                     )
-                   ELSE NULL
-                 END
+                 JSON_OBJECT(
+                   'startDayOfYear', sp.start_day_of_year,
+                   'endDayOfYear', sp.end_day_of_year,
+                   'markupPercentage', sp.markup_percentage,
+                   'tolerancePercentage', sp.tolerance_percentage
+                 )
                ),
                '[]'
              ) as periods
@@ -28,10 +26,10 @@ router.get('/', authenticateToken, async (req, res) => {
       ORDER BY s.created_at DESC
     `) as any[];
 
-    // Преобразуем строку периодов в массив
+    // Преобразуем строку периодов в массив и фильтруем null
     const formattedTemplates = templates.map((template: any) => ({
       ...template,
-      periods: JSON.parse(template.periods || '[]')
+      periods: (JSON.parse(template.periods || '[]') || []).filter(Boolean)
     }));
 
     res.json(formattedTemplates);
@@ -67,8 +65,8 @@ router.post('/', authenticateToken, async (req, res) => {
       // Добавляем периоды
       for (const period of periods) {
         await connection.query(
-          'INSERT INTO seasonality_periods (seasonality_id, start_date, end_date) VALUES (?, ?, ?)',
-          [seasonalityId, period.startDate, period.endDate]
+          'INSERT INTO seasonality_periods (seasonality_id, start_day_of_year, end_day_of_year, markup_percentage, tolerance_percentage) VALUES (?, ?, ?, ?, ?)',
+          [seasonalityId, period.startDayOfYear, period.endDayOfYear, period.markupPercentage, period.tolerancePercentage]
         );
       }
 
@@ -80,8 +78,10 @@ router.post('/', authenticateToken, async (req, res) => {
                COALESCE(
                  JSON_ARRAYAGG(
                    JSON_OBJECT(
-                     'startDate', DATE_FORMAT(sp.start_date, '%Y-%m-%d'),
-                     'endDate', DATE_FORMAT(sp.end_date, '%Y-%m-%d')
+                     'startDayOfYear', sp.start_day_of_year,
+                     'endDayOfYear', sp.end_day_of_year,
+                     'markupPercentage', sp.markup_percentage,
+                     'tolerancePercentage', sp.tolerance_percentage
                    )
                  ),
                  '[]'
@@ -140,8 +140,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
       // Добавляем новые периоды
       for (const period of periods) {
         await connection.query(
-          'INSERT INTO seasonality_periods (seasonality_id, start_date, end_date) VALUES (?, ?, ?)',
-          [id, period.startDate, period.endDate]
+          'INSERT INTO seasonality_periods (seasonality_id, start_day_of_year, end_day_of_year, markup_percentage, tolerance_percentage) VALUES (?, ?, ?, ?, ?)',
+          [id, period.startDayOfYear, period.endDayOfYear, period.markupPercentage, period.tolerancePercentage]
         );
       }
 
@@ -153,8 +153,10 @@ router.put('/:id', authenticateToken, async (req, res) => {
                COALESCE(
                  JSON_ARRAYAGG(
                    JSON_OBJECT(
-                     'startDate', DATE_FORMAT(sp.start_date, '%Y-%m-%d'),
-                     'endDate', DATE_FORMAT(sp.end_date, '%Y-%m-%d')
+                     'startDayOfYear', sp.start_day_of_year,
+                     'endDayOfYear', sp.end_day_of_year,
+                     'markupPercentage', sp.markup_percentage,
+                     'tolerancePercentage', sp.tolerance_percentage
                    )
                  ),
                  '[]'
@@ -202,10 +204,8 @@ router.delete('/:id', authenticateToken, async (req, res) => {
       return;
     }
 
-    // Удаляем шаблон (периоды удалятся автоматически благодаря ON DELETE CASCADE)
     await pool.query('DELETE FROM seasonality WHERE id = ?', [id]);
-
-    res.json({ message: 'Шаблон успешно удален' });
+    res.json(id);
   } catch (error) {
     console.error('Error deleting seasonality template:', error);
     res.status(500).json({ message: 'Ошибка при удалении шаблона сезонности' });

@@ -1,11 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch } from '../store';
-import { DateRange, Range, RangeKeyDict } from 'react-date-range';
-import { addDays } from 'date-fns';
-import ru from 'date-fns/locale/ru';
-import 'react-date-range/dist/styles.css';
-import 'react-date-range/dist/theme/default.css';
 import {
   fetchSeasonality,
   addSeasonality,
@@ -13,18 +8,213 @@ import {
   deleteSeasonality
 } from '../store/slices/seasonalitySlice';
 
-interface DatePeriod {
-  startDate: string;
-  endDate: string;
+// Новый компонент для выбора периодов по дням года
+export interface DayRange {
+  startDayOfYear: number;
+  endDayOfYear: number;
+  markupPercentage: number | null;
+  tolerancePercentage: number | null;
 }
+
+export const MONTHS: string[] = [
+  'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+  'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
+];
+export const DAYS_IN_MONTH: readonly number[] = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+export function getDayOfYear(month: number, day: number) {
+  let dayOfYear = day;
+  for (let i = 0; i < month; i++) {
+    dayOfYear += DAYS_IN_MONTH[i];
+  }
+  return dayOfYear;
+}
+
+export function getMonthDayFromDayOfYear(dayOfYear: number) {
+  if (dayOfYear < 1 || dayOfYear > 366) {
+    return { month: 'Январь', day: 1 };
+  }
+  
+  let remainingDays = dayOfYear;
+  let monthIndex = 0;
+  
+  while (monthIndex < DAYS_IN_MONTH.length && remainingDays > DAYS_IN_MONTH[monthIndex]) {
+    remainingDays -= DAYS_IN_MONTH[monthIndex];
+    monthIndex++;
+  }
+  
+  return { month: MONTHS[monthIndex], day: remainingDays };
+}
+
+interface DayOfYearRangeGridProps {
+  periods: DayRange[];
+  setPeriods: (periods: DayRange[]) => void;
+}
+
+export const DayOfYearRangeGrid: React.FC<DayOfYearRangeGridProps> = ({ periods, setPeriods }) => {
+  const [selecting, setSelecting] = React.useState<{ start: number | null; end: number | null }>({ start: null, end: null });
+  const [hoverDay, setHoverDay] = React.useState<number | null>(null);
+
+  const resetSelection = () => setSelecting({ start: null, end: null });
+
+  const isDaySelected = (dayOfYear: number) => {
+    for (const p of periods) {
+      if (dayOfYear >= p.startDayOfYear && dayOfYear <= p.endDayOfYear) return true;
+    }
+    if (selecting.start !== null && selecting.end !== null) {
+      const [s, e] = [selecting.start, selecting.end].sort((a, b) => a - b);
+      if (dayOfYear >= s && dayOfYear <= e) return true;
+    }
+    return false;
+  };
+
+  const isDayInCurrentSelection = (dayOfYear: number) => {
+    if (selecting.start !== null && hoverDay !== null) {
+      const [s, e] = [selecting.start, hoverDay].sort((a, b) => a - b);
+      return dayOfYear >= s && dayOfYear <= e;
+    }
+    return false;
+  };
+
+  const isOverlapping = (start: number, end: number) => {
+    for (const p of periods) {
+      if (Math.max(start, p.startDayOfYear) <= Math.min(end, p.endDayOfYear)) return true;
+    }
+    return false;
+  };
+
+  const handleDayClick = (dayOfYear: number) => {
+    if (selecting.start === null) {
+      setSelecting({ start: dayOfYear, end: null });
+      setHoverDay(null);
+    } else if (selecting.start !== null && selecting.end === null) {
+      const [start, end] = [selecting.start, dayOfYear].sort((a, b) => a - b);
+      if (isOverlapping(start, end)) {
+        alert('Периоды не должны пересекаться!');
+        resetSelection();
+        return;
+      }
+      setPeriods([...periods, { startDayOfYear: start, endDayOfYear: end, markupPercentage: null, tolerancePercentage: null }]);
+      resetSelection();
+    }
+  };
+
+  const handleDayMouseOver = (dayOfYear: number) => {
+    if (selecting.start !== null && selecting.end === null) {
+      setHoverDay(dayOfYear);
+    }
+  };
+
+  const handleRemovePeriod = (index: number) => {
+    setPeriods(periods.filter((_, i) => i !== index));
+  };
+
+  return (
+    <div>
+      <div className="overflow-x-auto max-h-[200px]">
+        <table className="border-collapse">
+          <thead className="sticky top-0 bg-white">
+            <tr>
+              {MONTHS.map((month, mIdx) => (
+                <th key={month} colSpan={DAYS_IN_MONTH[mIdx]} className="text-center px-1 py-1 border-b text-xs font-bold">
+                  {month}
+                </th>
+              ))}
+            </tr>
+            <tr>
+              {DAYS_IN_MONTH.map((days, mIdx) => (
+                Array.from({ length: days }, (_, dIdx) => (
+                  <th key={mIdx + '-' + dIdx} className="text-center px-1 py-0 border-b text-[10px] font-normal">
+                    {dIdx + 1}
+                  </th>
+                ))
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              {DAYS_IN_MONTH.map((days, mIdx) => (
+                Array.from({ length: days }, (_, dIdx) => {
+                  const dayOfYear = getDayOfYear(mIdx, dIdx + 1);
+                  const selected = isDaySelected(dayOfYear);
+                  const inCurrent = isDayInCurrentSelection(dayOfYear);
+                  const isEvenMonth = mIdx % 2 === 0;
+                  return (
+                    <td
+                      key={mIdx + '-' + dIdx}
+                      className={`w-6 h-6 cursor-pointer border ${selected ? 'bg-green-300' : inCurrent ? 'bg-green-100' : isEvenMonth ? 'bg-gray-100' : 'bg-white'}`}
+                      onClick={() => handleDayClick(dayOfYear)}
+                      onMouseOver={() => handleDayMouseOver(dayOfYear)}
+                    />
+                  );
+                })
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <div className="mt-6">
+        <label className="block text-sm text-gray-600 mb-2">Выбранные периоды:</label>
+        {periods.map((period, index) => {
+          const start = getMonthDayFromDayOfYear(period.startDayOfYear);
+          const end = getMonthDayFromDayOfYear(period.endDayOfYear);
+
+          const handlePeriodChange = (field: 'markupPercentage' | 'tolerancePercentage', value: number | null) => {
+            const newPeriods = [...periods];
+            newPeriods[index] = { ...newPeriods[index], [field]: value };
+            setPeriods(newPeriods);
+          };
+
+          return (
+            <div key={index} className="flex justify-between items-center p-2 bg-gray-50 rounded mb-2">
+              <div className="flex-grow">
+                <span className="text-sm">
+                  {`${start.month} ${start.day}`} - {`${end.month} ${end.day}`}
+                  {` (дни года: ${period.startDayOfYear} - ${period.endDayOfYear})`}
+                </span>
+                <div className="mt-2 flex space-x-2">
+                  <div>
+                    <label className="block text-xs text-gray-500">Наценка %</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={period.markupPercentage !== null && period.markupPercentage !== undefined ? period.markupPercentage : ''}
+                      onChange={(e) => handlePeriodChange('markupPercentage', e.target.value === '' ? null : parseFloat(e.target.value))}
+                      className="w-20 p-1 border rounded text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500">Допуск %</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={period.tolerancePercentage !== null && period.tolerancePercentage !== undefined ? period.tolerancePercentage : ''}
+                      onChange={(e) => handlePeriodChange('tolerancePercentage', e.target.value === '' ? null : parseFloat(e.target.value))}
+                      className="w-20 p-1 border rounded text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => handleRemovePeriod(index)}
+                className="text-red-600 hover:text-red-900 ml-4"
+              >
+                Удалить
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
 
 interface SeasonalityTemplate {
   id: number;
   name: string;
-  periods: DatePeriod[];
+  periods: DayRange[];
 }
-
-type DateRangeType = Range;
 
 const Seasonality: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -34,12 +224,7 @@ const Seasonality: React.FC = () => {
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<SeasonalityTemplate | null>(null);
   const [templateName, setTemplateName] = useState('');
-  const [periods, setPeriods] = useState<DatePeriod[]>([]);
-  const [currentRange, setCurrentRange] = useState<DateRangeType>({
-    startDate: new Date(),
-    endDate: addDays(new Date(), 7),
-    key: 'selection'
-  });
+  const [periods, setPeriods] = useState<DayRange[]>([]);
 
   useEffect(() => {
     if (status === 'idle') {
@@ -47,26 +232,11 @@ const Seasonality: React.FC = () => {
     }
   }, [status, dispatch]);
 
-  const handleAddPeriod = () => {
-    if (!currentRange.startDate || !currentRange.endDate) return;
-    
-    const newPeriod = {
-      startDate: currentRange.startDate.toISOString().split('T')[0],
-      endDate: currentRange.endDate.toISOString().split('T')[0]
-    };
-    setPeriods([...periods, newPeriod]);
-  };
-
-  const handleRemovePeriod = (index: number) => {
-    setPeriods(periods.filter((_, i) => i !== index));
-  };
-
   const handleSave = async () => {
     if (!templateName.trim() || periods.length === 0) {
       alert('Заполните название шаблона и добавьте хотя бы один период');
       return;
     }
-
     try {
       if (editingTemplate) {
         await dispatch(updateSeasonality({
@@ -90,15 +260,6 @@ const Seasonality: React.FC = () => {
     setEditingTemplate(template);
     setTemplateName(template.name);
     setPeriods(template.periods);
-    if (template.periods.length > 0) {
-      const startDate = new Date(template.periods[0].startDate);
-      const endDate = new Date(template.periods[0].endDate);
-      setCurrentRange({
-        startDate,
-        endDate,
-        key: 'selection'
-      });
-    }
     setIsAddingNew(true);
   };
 
@@ -117,12 +278,6 @@ const Seasonality: React.FC = () => {
     setEditingTemplate(null);
     setTemplateName('');
     setPeriods([]);
-    const today = new Date();
-    setCurrentRange({
-      startDate: today,
-      endDate: addDays(today, 7),
-      key: 'selection'
-    });
   };
 
   return (
@@ -155,45 +310,10 @@ const Seasonality: React.FC = () => {
                 placeholder="Введите название шаблона"
               />
             </div>
-
             <div>
-              <label className="block text-sm text-gray-600 mb-2">Выберите период</label>
-              <div className="flex flex-col items-start gap-4">
-                <div className="border rounded-lg shadow-sm">
-                  <DateRange
-                    editableDateInputs={true}
-                    onChange={(item: RangeKeyDict) => setCurrentRange(item.selection)}
-                    moveRangeOnFirstSelection={false}
-                    ranges={[currentRange]}
-                    locale={ru}
-                  />
-                </div>
-                <button
-                  onClick={handleAddPeriod}
-                  className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors"
-                >
-                  Добавить выбранный период
-                </button>
-              </div>
-
-              <div className="mt-6">
-                <label className="block text-sm text-gray-600 mb-2">Добавленные периоды:</label>
-                {periods.map((period, index) => (
-                  <div key={index} className="flex justify-between items-center p-2 bg-gray-50 rounded mb-2">
-                    <span className="text-sm">
-                      {new Date(period.startDate).toLocaleDateString()} - {new Date(period.endDate).toLocaleDateString()}
-                    </span>
-                    <button
-                      onClick={() => handleRemovePeriod(index)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Удалить
-                    </button>
-                  </div>
-                ))}
-              </div>
+              <label className="block text-sm text-gray-600 mb-2">Выберите периоды (без привязки к году)</label>
+              <DayOfYearRangeGrid periods={periods} setPeriods={setPeriods} />
             </div>
-
             <div className="flex gap-2">
               <button
                 onClick={handleSave}
@@ -232,11 +352,16 @@ const Seasonality: React.FC = () => {
               <tr key={template.id}>
                 <td className="px-6 py-4 whitespace-nowrap">{template.name}</td>
                 <td className="px-6 py-4">
-                  {template.periods.map((period, index) => (
+                  {template.periods.map((period, index) => {
+                    const start = getMonthDayFromDayOfYear(period.startDayOfYear);
+                    const end = getMonthDayFromDayOfYear(period.endDayOfYear);
+                    return (
                     <div key={index} className="text-sm text-gray-600">
-                      {new Date(period.startDate).toLocaleDateString()} - {new Date(period.endDate).toLocaleDateString()}
+                        {`${start.month} ${start.day}`} - {`${end.month} ${end.day}`}
+                        {` (дни года: ${period.startDayOfYear} - ${period.endDayOfYear})`}
                     </div>
-                  ))}
+                    );
+                  })}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right">
                   <button

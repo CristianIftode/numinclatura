@@ -4,18 +4,21 @@ import { Connection, RowDataPacket } from 'mysql2/promise';
 import pool from '../config/database';
 import authenticateToken from '../middleware/auth';
 
-interface SeasonalityPeriod {
-  start_date: string | null;
-  end_date: string | null;
+interface DayRange {
+  startDayOfYear: number;
+  endDayOfYear: number;
+  markupPercentage?: number;
+  tolerancePercentage?: number;
 }
 
 interface CountrySeasonality {
   template_id: number | null;
-  periods: SeasonalityPeriod[];
+  periods: DayRange[];
 }
 
 interface CountryData {
   country_id: number;
+  brand_id: number;
   sku_code: string;
   type: 'regular' | 'exclusive';
   is_new_until: string | null;
@@ -29,8 +32,8 @@ interface NomenclatureRequest {
 
 const router = express.Router();
 
-// Получить список номенклатуры с информацией по странам
-router.get('/', authenticateToken, async (req, res) => {
+// Получить все товары
+router.get('/', authenticateToken, async (req: Request, res: Response) => {
   try {
     const [items] = await pool.query(`
       SELECT 
@@ -42,17 +45,21 @@ router.get('/', authenticateToken, async (req, res) => {
                 'id', nc.id,
                 'country_id', nc.country_id,
                 'country_name', c.name,
+                'brand_id', nc.brand_id,
+                'brand_name', b.name,
                 'sku_code', nc.sku_code,
                 'type', nc.type,
                 'is_new_until', DATE_FORMAT(nc.is_new_until, '%Y-%m-%d %H:%i:%s'),
                 'seasonality', JSON_OBJECT(
-                  'template_id', NULL,
+                  'template_id', nc.seasonality_template_id,
                   'periods', COALESCE(
                     (
                       SELECT JSON_ARRAYAGG(
                         JSON_OBJECT(
-                          'start_date', DATE_FORMAT(ns2.start_date, '%Y-%m-%d'),
-                          'end_date', DATE_FORMAT(ns2.end_date, '%Y-%m-%d')
+                          'startDayOfYear', ns2.start_day_of_year,
+                          'endDayOfYear', ns2.end_day_of_year,
+                          'markupPercentage', ns2.markup_percentage,
+                          'tolerancePercentage', ns2.tolerance_percentage
                         )
                       )
                       FROM nomenclature_seasonality ns2
@@ -70,6 +77,7 @@ router.get('/', authenticateToken, async (req, res) => {
       FROM nomenclature n
       LEFT JOIN nomenclature_country nc ON n.id = nc.nomenclature_id
       LEFT JOIN countries c ON nc.country_id = c.id
+      LEFT JOIN brands b ON nc.brand_id = b.id
       GROUP BY n.id
       ORDER BY n.created_at DESC
     `) as any[];
@@ -87,55 +95,53 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // Добавить новый товар
-router.post('/', async (req: Request<any, any, NomenclatureRequest>, res: Response) => {
+router.post('/', authenticateToken, async (req: Request<any, any, NomenclatureRequest>, res: Response) => {
   const connection = await pool.getConnection();
+  await connection.beginTransaction();
+
   try {
-    await connection.beginTransaction();
-    
     const { name, countries } = req.body;
     
-    // Insert nomenclature
-    const [result] = await pool.query(
+    // Добавляем товар
+    const [result] = await connection.query(
       'INSERT INTO nomenclature (name) VALUES (?)',
       [name]
-    );
+    ) as any[];
     
-    const nomenclatureId = (result as any).insertId;
+    const nomenclatureId = result.insertId;
     
-    // Insert countries and seasonality
+    // Добавляем страны
     for (const country of countries) {
-      const { country_id, sku_code, type, is_new_until, seasonality } = country;
-      
-      // Проверяем, нет ли уже такой страны у этого товара
-      const [existingCountry] = await connection.query(
-        'SELECT id FROM nomenclature_country WHERE nomenclature_id = ? AND country_id = ?',
-        [nomenclatureId, country_id]
-      ) as RowDataPacket[];
-
-      if (existingCountry.length > 0) {
-        continue; // Пропускаем, если страна уже существует
-      }
-      
       const [countryResult] = await connection.query(
-        'INSERT INTO nomenclature_country (nomenclature_id, country_id, sku_code, type, is_new_until) VALUES (?, ?, ?, ?, ?)',
-        [nomenclatureId, country_id, sku_code, type, is_new_until]
-      );
+        'INSERT INTO nomenclature_country (nomenclature_id, country_id, brand_id, sku_code, type, is_new_until, seasonality_template_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [
+          nomenclatureId,
+          country.country_id,
+          country.brand_id,
+          country.sku_code,
+          country.type,
+          country.is_new_until,
+          country.seasonality.template_id
+        ]
+      ) as any[];
       
-      const countryLinkId = (countryResult as any).insertId;
+      const countryLinkId = countryResult.insertId;
+      const { seasonality } = country;
       
       if (seasonality && seasonality.periods && seasonality.periods.length > 0) {
         // Вставляем все периоды сезонности
-        const periodValues = seasonality.periods.map((period: SeasonalityPeriod) => [
+        const periodValues = seasonality.periods.map((period: DayRange) => [
           countryLinkId,
-          seasonality.template_id,
-          period.start_date,
-          period.end_date
+          period.startDayOfYear,
+          period.endDayOfYear,
+          period.markupPercentage || null,
+          period.tolerancePercentage || null
         ]).flat();
 
-        const placeholders = seasonality.periods.map(() => '(?, ?, ?, ?)').join(', ');
+        const placeholders = seasonality.periods.map(() => '(?, ?, ?, ?, ?)').join(', ');
         
         await connection.query(
-          `INSERT INTO nomenclature_seasonality (nomenclature_country_id, seasonality_template_id, start_date, end_date) VALUES ${placeholders}`,
+          `INSERT INTO nomenclature_seasonality (nomenclature_country_id, start_day_of_year, end_day_of_year, markup_percentage, tolerance_percentage) VALUES ${placeholders}`,
           periodValues
         );
       }
@@ -144,7 +150,7 @@ router.post('/', async (req: Request<any, any, NomenclatureRequest>, res: Respon
     await connection.commit();
 
     // Получаем полные данные созданного товара
-    const [newItem] = await pool.query(`
+    const [newItem] = await connection.query(`
       SELECT 
         n.*,
         COALESCE(
@@ -154,17 +160,21 @@ router.post('/', async (req: Request<any, any, NomenclatureRequest>, res: Respon
                 'id', nc.id,
                 'country_id', nc.country_id,
                 'country_name', c.name,
+                'brand_id', nc.brand_id,
+                'brand_name', b.name,
                 'sku_code', nc.sku_code,
                 'type', nc.type,
                 'is_new_until', DATE_FORMAT(nc.is_new_until, '%Y-%m-%d %H:%i:%s'),
                 'seasonality', JSON_OBJECT(
-                  'template_id', NULL,
+                  'template_id', nc.seasonality_template_id,
                   'periods', COALESCE(
                     (
                       SELECT JSON_ARRAYAGG(
                         JSON_OBJECT(
-                          'start_date', DATE_FORMAT(ns2.start_date, '%Y-%m-%d'),
-                          'end_date', DATE_FORMAT(ns2.end_date, '%Y-%m-%d')
+                          'startDayOfYear', ns2.start_day_of_year,
+                          'endDayOfYear', ns2.end_day_of_year,
+                          'markupPercentage', ns2.markup_percentage,
+                          'tolerancePercentage', ns2.tolerance_percentage
                         )
                       )
                       FROM nomenclature_seasonality ns2
@@ -182,6 +192,7 @@ router.post('/', async (req: Request<any, any, NomenclatureRequest>, res: Respon
       FROM nomenclature n
       LEFT JOIN nomenclature_country nc ON n.id = nc.nomenclature_id
       LEFT JOIN countries c ON nc.country_id = c.id
+      LEFT JOIN brands b ON nc.brand_id = b.id
       WHERE n.id = ?
       GROUP BY n.id
     `, [nomenclatureId]) as any[];
@@ -202,134 +213,136 @@ router.post('/', async (req: Request<any, any, NomenclatureRequest>, res: Respon
 });
 
 // Обновить товар
-router.put('/:id', authenticateToken, async (req, res) => {
+router.put('/:id', authenticateToken, async (req: Request, res: Response) => {
+  const connection = await pool.getConnection();
+  await connection.beginTransaction();
+
   try {
     const { id } = req.params;
     const { name, countries } = req.body;
 
-    if (!name || !countries || !Array.isArray(countries) || countries.length === 0) {
-      res.status(400).json({ message: 'Название и информация по странам обязательны' });
-      return;
-    }
-
-    const connection = await pool.getConnection();
-    await connection.beginTransaction();
-
-    try {
-      // Обновляем основную информацию
+    // Обновляем товар
       await connection.query(
         'UPDATE nomenclature SET name = ? WHERE id = ?',
         [name, id]
       );
 
-      // Удаляем старую информацию по странам (каскадно удалит и сезонность)
+    // Удаляем старые связи со странами
       await connection.query(
         'DELETE FROM nomenclature_country WHERE nomenclature_id = ?',
         [id]
       );
 
-      // Добавляем новую информацию по странам
+    // Добавляем новые страны
       for (const country of countries) {
-        // Добавляем связь с страной
         const [countryResult] = await connection.query(
-          'INSERT INTO nomenclature_country (nomenclature_id, country_id, sku_code, type, is_new_until) VALUES (?, ?, ?, ?, ?)',
-          [id, country.country_id, country.sku_code, country.type, country.is_new_until]
+        'INSERT INTO nomenclature_country (nomenclature_id, country_id, brand_id, sku_code, type, is_new_until, seasonality_template_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [
+          id,
+          country.country_id,
+          country.brand_id,
+          country.sku_code,
+          country.type,
+          country.is_new_until,
+          country.seasonality.template_id
+        ]
         ) as any[];
 
-        const nomenclatureCountryId = countryResult.insertId;
+      const countryLinkId = countryResult.insertId;
+      const { seasonality } = country;
 
-        // Добавляем сезонность
-        if (country.seasonality) {
-          const { template_id, start_date, end_date } = country.seasonality;
+      if (seasonality && seasonality.periods && seasonality.periods.length > 0) {
+        // Вставляем все периоды сезонности
+        const periodValues = seasonality.periods.map((period: DayRange) => [
+          countryLinkId,
+          period.startDayOfYear,
+          period.endDayOfYear,
+          period.markupPercentage || null,
+          period.tolerancePercentage || null
+        ]).flat();
+
+        const placeholders = seasonality.periods.map(() => '(?, ?, ?, ?, ?)').join(', ');
+        
           await connection.query(
-            'INSERT INTO nomenclature_seasonality (nomenclature_country_id, seasonality_template_id, start_date, end_date) VALUES (?, ?, ?, ?)',
-            [nomenclatureCountryId, template_id, start_date, end_date]
+          `INSERT INTO nomenclature_seasonality (nomenclature_country_id, start_day_of_year, end_day_of_year, markup_percentage, tolerance_percentage) VALUES ${placeholders}`,
+          periodValues
           );
         }
       }
 
       await connection.commit();
 
-      // Получаем обновленный товар
+    // Получаем обновленные данные товара
       const [updatedItem] = await connection.query(`
         SELECT 
           n.*,
           COALESCE(
             JSON_ARRAYAGG(
-              CASE 
-                WHEN nc.id IS NOT NULL THEN
+            IF(nc.id IS NOT NULL,
                   JSON_OBJECT(
                     'id', nc.id,
                     'country_id', nc.country_id,
                     'country_name', c.name,
+                    'brand_id', nc.brand_id,
+                    'brand_name', b.name,
                     'sku_code', nc.sku_code,
                     'type', nc.type,
                     'is_new_until', DATE_FORMAT(nc.is_new_until, '%Y-%m-%d %H:%i:%s'),
                     'seasonality', JSON_OBJECT(
-                      'template_id', ns.seasonality_template_id,
-                      'template_name', s.name,
-                      'start_date', DATE_FORMAT(ns.start_date, '%Y-%m-%d'),
-                      'end_date', DATE_FORMAT(ns.end_date, '%Y-%m-%d')
-                    )
+                  'template_id', nc.seasonality_template_id,
+                  'periods', COALESCE(
+                    (
+                      SELECT JSON_ARRAYAGG(
+                        JSON_OBJECT(
+                          'startDayOfYear', ns2.start_day_of_year,
+                          'endDayOfYear', ns2.end_day_of_year,
+                          'markupPercentage', ns2.markup_percentage,
+                          'tolerancePercentage', ns2.tolerance_percentage
+                        )
+                      )
+                      FROM nomenclature_seasonality ns2
+                      WHERE ns2.nomenclature_country_id = nc.id
+                    ),
+                    JSON_ARRAY()
                   )
-                ELSE NULL
-              END
+                )
+              ),
+              NULL
+            )
             ),
-            '[]'
+          JSON_ARRAY()
           ) as countries
         FROM nomenclature n
         LEFT JOIN nomenclature_country nc ON n.id = nc.nomenclature_id
         LEFT JOIN countries c ON nc.country_id = c.id
-        LEFT JOIN nomenclature_seasonality ns ON nc.id = ns.nomenclature_country_id
-        LEFT JOIN seasonality s ON ns.seasonality_template_id = s.id
+        LEFT JOIN brands b ON nc.brand_id = b.id
         WHERE n.id = ?
         GROUP BY n.id
       `, [id]) as any[];
 
-      connection.release();
-
-      if (!updatedItem[0]) {
-        res.status(404).json({ message: 'Товар не найден' });
-        return;
-      }
-
-      res.json({
+    const formattedItem = {
         ...updatedItem[0],
-        countries: JSON.parse(updatedItem[0].countries || '[]')
-      });
-    } catch (error) {
-      await connection.rollback();
-      connection.release();
-      throw error;
-    }
+      countries: typeof updatedItem[0].countries === 'string' ? JSON.parse(updatedItem[0].countries) : updatedItem[0].countries
+    };
+
+    res.json(formattedItem);
   } catch (error) {
-    console.error('Error updating nomenclature item:', error);
-    res.status(500).json({ message: 'Ошибка при обновлении товара' });
+    await connection.rollback();
+    console.error('Error updating nomenclature:', error);
+    res.status(500).json({ message: 'Ошибка при обновлении номенклатуры' });
+  } finally {
+    connection.release();
   }
 });
 
 // Удалить товар
-router.delete('/:id', authenticateToken, async (req, res) => {
+router.delete('/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-
-    const [item] = await pool.query(
-      'SELECT * FROM nomenclature WHERE id = ?',
-      [id]
-    ) as any[];
-
-    if (item.length === 0) {
-      res.status(404).json({ message: 'Товар не найден' });
-      return;
-    }
-
-    // Удаляем товар (остальные записи удалятся каскадно)
-    await pool.query('DELETE FROM nomenclature WHERE id = ?', [id]);
-
-    res.json({ message: 'Товар успешно удален' });
+    await pool.query('DELETE FROM nomenclature WHERE id = ?', [req.params.id]);
+    res.json(req.params.id);
   } catch (error) {
-    console.error('Error deleting nomenclature item:', error);
-    res.status(500).json({ message: 'Ошибка при удалении товара' });
+    console.error('Error deleting nomenclature:', error);
+    res.status(500).json({ message: 'Ошибка при удалении номенклатуры' });
   }
 });
 

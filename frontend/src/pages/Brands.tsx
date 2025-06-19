@@ -2,69 +2,69 @@ import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import type { AnyAction, ThunkDispatch } from '@reduxjs/toolkit';
 import {
-  fetchCountries,
-  addCountry,
-  updateCountry,
-  deleteCountry,
-  Country,
-} from '../store/slices/countriesSlice';
+  fetchBrands,
+  addBrand,
+  updateBrand,
+  deleteBrand,
+  Brand,
+} from '../store/slices/brandsSlice';
 import { RootState } from '../store';
 
-const Countries: React.FC = () => {
+const Brands: React.FC = () => {
   const dispatch = useDispatch<ThunkDispatch<any, any, AnyAction>>();
-  const countries = useSelector((state: RootState) => state.countries.list);
-  const status = useSelector((state: RootState) => state.countries.status);
-  const error = useSelector((state: RootState) => state.countries.error);
+  const brands = useSelector((state: RootState) => state.brands.list);
+  const status = useSelector((state: RootState) => state.brands.status);
+  const error = useSelector((state: RootState) => state.brands.error);
 
-  const [newCountryName, setNewCountryName] = useState('');
-  const [editingCountry, setEditingCountry] = useState<Country | null>(null);
+  const [newBrandName, setNewBrandName] = useState('');
+  const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   useEffect(() => {
     if (status === 'idle') {
-      dispatch(fetchCountries());
+      dispatch(fetchBrands());
     }
   }, [status, dispatch]);
 
-  const handleAddCountry = async () => {
-    if (newCountryName.trim()) {
-      await dispatch(addCountry(newCountryName.trim()));
-      setNewCountryName('');
+  const handleAddBrand = async () => {
+    if (newBrandName.trim()) {
+      await dispatch(addBrand(newBrandName.trim()));
+      setNewBrandName('');
     }
   };
 
-  const handleEditClick = (country: Country) => {
-    setEditingCountry(country);
+  const handleEditClick = (brand: Brand) => {
+    setEditingBrand(brand);
     setIsEditDialogOpen(true);
   };
 
   const handleEditSave = async () => {
-    if (editingCountry && editingCountry.name.trim()) {
+    if (editingBrand && editingBrand.name.trim()) {
       await dispatch(
-        updateCountry({ id: editingCountry.id, name: editingCountry.name.trim() })
+        updateBrand({ id: editingBrand.id, name: editingBrand.name.trim() })
       );
       setIsEditDialogOpen(false);
-      setEditingCountry(null);
+      setEditingBrand(null);
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (window.confirm('Вы уверены, что хотите удалить эту страну?')) {
-      await dispatch(deleteCountry(id));
+    if (window.confirm('Вы уверены, что хотите удалить этот бренд?')) {
+      await dispatch(deleteBrand(id));
     }
   };
 
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Справочник стран</h1>
+        <h1 className="text-2xl font-bold">Справочник брендов</h1>
         <div className="flex gap-4">
           <button
-            onClick={handleAddCountry}
-            disabled={!newCountryName.trim()}
+            onClick={handleAddBrand}
+            disabled={!newBrandName.trim()}
             className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors disabled:bg-gray-300"
           >
-            Добавить страну
+            Добавить бренд
           </button>
         </div>
       </div>
@@ -73,9 +73,9 @@ const Countries: React.FC = () => {
         <div className="flex gap-4">
           <input
             type="text"
-            placeholder="Название страны"
-            value={newCountryName}
-            onChange={(e) => setNewCountryName(e.target.value)}
+            placeholder="Название бренда"
+            value={newBrandName}
+            onChange={(e) => setNewBrandName(e.target.value)}
             className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -94,18 +94,18 @@ const Countries: React.FC = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {countries.map((country: Country) => (
-              <tr key={country.id}>
-                <td className="px-6 py-4 whitespace-nowrap">{country.name}</td>
+            {brands.map((brand: Brand) => (
+              <tr key={brand.id}>
+                <td className="px-6 py-4 whitespace-nowrap">{brand.name}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-right">
                   <button
-                    onClick={() => handleEditClick(country)}
+                    onClick={() => handleEditClick(brand)}
                     className="text-yellow-600 hover:text-yellow-900 mr-3"
                   >
                     Изменить
                   </button>
                   <button
-                    onClick={() => handleDelete(country.id)}
+                    onClick={() => handleDelete(brand.id)}
                     className="text-red-600 hover:text-red-900"
                   >
                     Удалить
@@ -120,13 +120,13 @@ const Countries: React.FC = () => {
       {isEditDialogOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
           <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
-            <h3 className="text-xl font-semibold mb-4">Редактировать страну</h3>
+            <h3 className="text-xl font-semibold mb-4">Редактировать бренд</h3>
             <input
               type="text"
-              value={editingCountry?.name || ''}
+              value={editingBrand?.name || ''}
               onChange={(e) =>
-                setEditingCountry(
-                  editingCountry ? { ...editingCountry, name: e.target.value } : null
+                setEditingBrand(
+                  editingBrand ? { ...editingBrand, name: e.target.value } : null
                 )
               }
               className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
@@ -152,4 +152,4 @@ const Countries: React.FC = () => {
   );
 };
 
-export default Countries; 
+export default Brands; 

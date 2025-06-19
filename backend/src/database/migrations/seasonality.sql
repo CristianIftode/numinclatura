@@ -10,8 +10,8 @@ CREATE TABLE IF NOT EXISTS seasonality (
 CREATE TABLE IF NOT EXISTS seasonality_periods (
     id INT AUTO_INCREMENT PRIMARY KEY,
     seasonality_id INT NOT NULL,
-    start_date DATE NOT NULL,
-    end_date DATE NOT NULL,
+    start_day_of_year INT NOT NULL,
+    end_day_of_year INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (seasonality_id) REFERENCES seasonality(id) ON DELETE CASCADE

@@ -2,11 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch } from '../store';
 import DatePicker from 'react-datepicker';
-import { DateRange } from 'react-date-range';
 import "react-datepicker/dist/react-datepicker.css";
-import 'react-date-range/dist/styles.css';
-import 'react-date-range/dist/theme/default.css';
-import ru from 'date-fns/locale/ru';
 import {
   fetchNomenclature,
   addNomenclature,
@@ -14,22 +10,20 @@ import {
   deleteNomenclature
 } from '../store/slices/nomenclatureSlice';
 import { fetchCountries } from '../store/slices/countriesSlice';
+import { fetchBrands } from '../store/slices/brandsSlice';
 import { fetchSeasonality } from '../store/slices/seasonalitySlice';
 import { CountryInfo, NomenclatureItem } from '../types/nomenclature';
+import { DayOfYearRangeGrid, DayRange, getMonthDayFromDayOfYear, MONTHS } from './Seasonality';
 
 // Form interfaces (using Date objects)
-interface FormSeasonalityPeriod {
-  start_date: Date | undefined;
-  end_date: Date | undefined;
-}
-
 interface FormSeasonality {
   template_id: number | null;
-  periods: FormSeasonalityPeriod[];
+  periods: DayRange[];
 }
 
 interface FormCountry {
   country_id: number;
+  brand_id: number;
   sku_code: string;
   type: 'regular' | 'exclusive';
   is_new_until: Date | undefined;
@@ -37,28 +31,30 @@ interface FormCountry {
 }
 
 // API interfaces (using strings)
-interface ApiSeasonalityPeriod {
-  start_date: string | null;
-  end_date: string | null;
-}
-
 interface ApiSeasonality {
   template_id: number | null;
-  periods: ApiSeasonalityPeriod[];
+  periods: DayRange[];
 }
 
 interface ApiCountry {
   country_id: number;
+  brand_id: number;
   sku_code: string;
   type: 'regular' | 'exclusive';
   is_new_until: string | null;
   seasonality: ApiSeasonality;
 }
 
+interface CountrySeasonality {
+  template_id: number | null;
+  periods: DayRange[];
+}
+
 const Nomenclature: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const items = useSelector((state: any) => state.nomenclature.list);
   const countries = useSelector((state: any) => state.countries.list);
+  const brands = useSelector((state: any) => state.brands.list);
   const templates = useSelector((state: any) => state.seasonality.list);
   const status = useSelector((state: any) => state.nomenclature.status);
 
@@ -71,6 +67,7 @@ const Nomenclature: React.FC = () => {
     if (status === 'idle') {
       dispatch(fetchNomenclature());
       dispatch(fetchCountries());
+      dispatch(fetchBrands());
       dispatch(fetchSeasonality());
     }
   }, [status, dispatch]);
@@ -80,6 +77,7 @@ const Nomenclature: React.FC = () => {
       ...countryForms,
       {
         country_id: 0,
+        brand_id: 0,
         sku_code: '',
         type: 'regular',
         is_new_until: undefined,
@@ -95,59 +93,27 @@ const Nomenclature: React.FC = () => {
     const newForms = [...countryForms];
     if (field === 'seasonality') {
       if (value.template_id !== undefined) {
-        // Находим выбранный шаблон
         const selectedTemplate = templates.find((t: any) => t.id === value.template_id);
-        
-        if (selectedTemplate && selectedTemplate.periods.length > 0) {
-          // Копируем периоды из шаблона
-          const templatePeriods = selectedTemplate.periods.map((period: any) => ({
-            start_date: period.startDate ? new Date(period.startDate) : null,
-            end_date: period.endDate ? new Date(period.endDate) : null
-          }));
-          
+        if (selectedTemplate && selectedTemplate.periods) {
           newForms[index].seasonality = {
-            ...newForms[index].seasonality,
-            template_id: null, // Не сохраняем ID шаблона
-            periods: templatePeriods // Сохраняем только периоды
+            template_id: selectedTemplate.id,
+            periods: selectedTemplate.periods
           };
         } else {
           newForms[index].seasonality = {
-            ...newForms[index].seasonality,
-            template_id: null,
+            template_id: value.template_id,
             periods: []
           };
         }
       } else if (value.periods) {
         newForms[index].seasonality = {
           ...newForms[index].seasonality,
-          template_id: null,
           periods: value.periods
         };
       }
     } else {
       (newForms[index] as any)[field] = value;
     }
-    setCountryForms(newForms);
-  };
-
-  const handleAddPeriod = (countryIndex: number) => {
-    const newForms = [...countryForms];
-    newForms[countryIndex].seasonality.periods.push({
-      start_date: undefined,
-      end_date: undefined
-    });
-    setCountryForms(newForms);
-  };
-
-  const handleRemovePeriod = (countryIndex: number, periodIndex: number) => {
-    const newForms = [...countryForms];
-    newForms[countryIndex].seasonality.periods.splice(periodIndex, 1);
-    setCountryForms(newForms);
-  };
-
-  const handlePeriodChange = (countryIndex: number, periodIndex: number, field: keyof FormSeasonalityPeriod, value: Date | undefined) => {
-    const newForms = [...countryForms];
-    newForms[countryIndex].seasonality.periods[periodIndex][field] = value;
     setCountryForms(newForms);
   };
 
@@ -162,25 +128,23 @@ const Nomenclature: React.FC = () => {
     }
 
     const isValid = countryForms.every(form => 
-      form.country_id && form.sku_code && form.seasonality.periods.length > 0
+      form.country_id && form.brand_id && form.sku_code && (form.seasonality.template_id || form.seasonality.periods.length > 0)
     );
 
     if (!isValid) {
-      alert('Заполните все обязательные поля для каждой страны');
+      alert('Заполните все обязательные поля для каждой страны (страна, бренд, артикул и сезонность)');
       return;
     }
 
     const formattedCountries: Omit<CountryInfo, 'id' | 'country_name'>[] = countryForms.map(form => ({
       country_id: form.country_id,
+      brand_id: form.brand_id,
       sku_code: form.sku_code,
       type: form.type,
       is_new_until: form.is_new_until ? form.is_new_until.toISOString() : null,
       seasonality: {
-        template_id: null,
-        periods: form.seasonality.periods.map(period => ({
-          start_date: period.start_date ? period.start_date.toISOString().split('T')[0] : null,
-          end_date: period.end_date ? period.end_date.toISOString().split('T')[0] : null
-        }))
+        template_id: form.seasonality.template_id,
+        periods: form.seasonality.periods
       }
     }));
 
@@ -199,7 +163,7 @@ const Nomenclature: React.FC = () => {
       }
       handleCancel();
     } catch (error) {
-      console.error('Failed to save item:', error);
+      console.error('Failed to save nomenclature:', error);
     }
   };
 
@@ -208,14 +172,17 @@ const Nomenclature: React.FC = () => {
     setItemName(item.name);
     setCountryForms((item.countries || []).map((country: any) => ({
       country_id: country.country_id,
+      brand_id: country.brand_id,
       sku_code: country.sku_code,
       type: country.type,
       is_new_until: country.is_new_until ? new Date(country.is_new_until) : null,
       seasonality: {
-        template_id: null,
+        template_id: country.seasonality?.template_id || null,
         periods: (country.seasonality?.periods || []).map((period: any) => ({
-          start_date: period.start_date ? new Date(period.start_date) : null,
-          end_date: period.end_date ? new Date(period.end_date) : null
+          startDayOfYear: period.startDayOfYear,
+          endDayOfYear: period.endDayOfYear,
+          markupPercentage: period.markupPercentage || null,
+          tolerancePercentage: period.tolerancePercentage || null,
         }))
       }
     })));
@@ -283,7 +250,7 @@ const Nomenclature: React.FC = () => {
               
               {countryForms.map((form, countryIndex) => (
                 <div key={countryIndex} className="mb-4 p-4 border rounded">
-                  <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="grid grid-cols-3 gap-4 mb-4">
                     <div>
                       <label className="block text-sm text-gray-600 mb-1">Страна</label>
                       <select
@@ -295,6 +262,21 @@ const Nomenclature: React.FC = () => {
                         {countries.map((country: any) => (
                           <option key={country.id} value={country.id}>
                             {country.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Бренд</label>
+                      <select
+                        value={form.brand_id}
+                        onChange={(e) => handleCountryChange(countryIndex, 'brand_id', Number(e.target.value))}
+                        className="w-full p-2 border rounded"
+                      >
+                        <option value={0}>Выберите бренд</option>
+                        {brands.map((brand: any) => (
+                          <option key={brand.id} value={brand.id}>
+                            {brand.name}
                           </option>
                         ))}
                       </select>
@@ -342,70 +324,27 @@ const Nomenclature: React.FC = () => {
                         <label className="block text-sm text-gray-600 mb-1">Шаблон сезонности</label>
                         <select
                           value={form.seasonality.template_id || ''}
-                          onChange={(e) => {
-                            const value = e.target.value ? Number(e.target.value) : null;
-                            handleCountryChange(countryIndex, 'seasonality', {
-                              template_id: value
-                            });
-                          }}
-                          className="w-full p-2 border rounded"
+                          onChange={e => handleCountryChange(countryIndex, 'seasonality', { template_id: e.target.value ? Number(e.target.value) : null })}
+                          className="w-full p-2 border rounded mb-2"
                         >
-                          <option value="">Выберите шаблон</option>
+                          <option value="">Ручной ввод</option>
                           {templates.map((template: any) => (
-                            <option key={template.id} value={template.id}>
-                              {template.name}
-                            </option>
+                            <option key={template.id} value={template.id}>{template.name}</option>
                           ))}
                         </select>
-                      </div>
-
-                      <div className="mt-4">
-                        <div className="flex justify-between items-center mb-2">
-                          <label className="block text-sm text-gray-600">Периоды</label>
-                          <button
-                            type="button"
-                            onClick={() => handleAddPeriod(countryIndex)}
-                            className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
-                          >
-                            Добавить период
-                          </button>
-                        </div>
-
-                        {form.seasonality.periods.map((period, periodIndex) => (
-                          <div key={periodIndex} className="mb-4 p-4 border rounded bg-gray-50">
-                            <div className="flex justify-between items-start mb-2">
-                              <span className="text-sm text-gray-600">Период {periodIndex + 1}</span>
-                              <button
-                                type="button"
-                                onClick={() => handleRemovePeriod(countryIndex, periodIndex)}
-                                className="px-2 py-1 text-sm text-red-500 hover:text-red-600"
-                              >
-                                Удалить
-                              </button>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                <label className="block text-sm text-gray-600 mb-1">Период</label>
-                                <DateRange
-                                  ranges={[{
-                                    startDate: period.start_date,
-                                    endDate: period.end_date,
-                                    key: 'selection'
-                                  }]}
-                                  onChange={(ranges) => {
-                                    handlePeriodChange(countryIndex, periodIndex, 'start_date', ranges.selection.startDate);
-                                    handlePeriodChange(countryIndex, periodIndex, 'end_date', ranges.selection.endDate);
-                                  }}
-                                  moveRangeOnFirstSelection={false}
-                                  className="w-full"
-                                  locale={ru}
-                                  months={1}
-                                  direction="horizontal"
-                                />
-                              </div>
-                            </div>
+                        <DayOfYearRangeGrid
+                          periods={form.seasonality.periods}
+                          setPeriods={periods => handleCountryChange(countryIndex, 'seasonality', { periods })}
+                        />
+                        {form.seasonality.template_id !== null && (
+                          <div className="text-xs text-gray-500 mt-2">
+                            Периоды из шаблона: {templates.find((t: any) => t.id === form.seasonality.template_id)?.periods.map((p: DayRange, i: number) => {
+                              const start = getMonthDayFromDayOfYear(p.startDayOfYear);
+                              const end = getMonthDayFromDayOfYear(p.endDayOfYear);
+                              return <span key={i}>{`${start.month} ${start.day} - ${end.month} ${end.day}`}{i < templates.find((t: any) => t.id === form.seasonality.template_id)!.periods.length - 1 ? ', ' : ''}</span>;
+                            })}
                           </div>
-                        ))}
+                        )}
                       </div>
                     </div>
                   </div>
@@ -462,6 +401,7 @@ const Nomenclature: React.FC = () => {
                     <div key={index} className="mb-2">
                       <div className="font-medium">{country.country_name}</div>
                       <div className="text-sm text-gray-600">
+                        Бренд: {country.brand_name || 'Не указан'} | 
                         Артикул: {country.sku_code} | 
                         Тип: {country.type === 'regular' ? 'Обычный' : 'Эксклюзив'}
                         {country.is_new_until && ` | Новинка до: ${new Date(country.is_new_until).toLocaleDateString()}`}
@@ -470,13 +410,21 @@ const Nomenclature: React.FC = () => {
                         Сезонность:
                         {(country.seasonality?.periods && country.seasonality.periods.length > 0) ? (
                           <div className="ml-2">
-                            {country.seasonality.periods.map((period: any, idx: number) => (
-                              <div key={idx} className="text-sm">
-                                Период {idx + 1}: {new Date(period.start_date).toLocaleDateString()} - {new Date(period.end_date).toLocaleDateString()}
+                            {country.seasonality.periods.map((period: DayRange, index: number) => {
+                              const startDate = getMonthDayFromDayOfYear(period.startDayOfYear);
+                              const endDate = getMonthDayFromDayOfYear(period.endDayOfYear);
+                              return (
+                                <div key={index} className="text-sm text-gray-600">
+                                  Период {index + 1}: {startDate.month} {startDate.day} - {endDate.month} {endDate.day}
+                                  {period.markupPercentage !== null && ` | Наценка: ${period.markupPercentage}%`}
+                                  {period.tolerancePercentage !== null && ` | Допуск: ${period.tolerancePercentage}%`}
                               </div>
-                            ))}
+                              );
+                            })}
                           </div>
-                        ) : (
+                        ) : (country.seasonality?.template_id ? 
+                           <span className="ml-1">По шаблону: {templates.find((t:any) => t.id === country.seasonality.template_id)?.name}</span>
+                           :
                           <span className="ml-1">Не указана</span>
                         )}
                       </div>

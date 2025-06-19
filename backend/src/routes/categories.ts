@@ -34,7 +34,8 @@ router.post('/', authenticateToken, async (req, res) => {
     const { name, parent_id } = req.body;
 
     if (!name) {
-      return res.status(400).json({ message: 'Название категории обязательно' });
+      res.status(400).json({ message: 'Название категории обязательно' });
+      return;
     }
 
     // Проверяем существование родительской категории, если она указана
@@ -45,7 +46,8 @@ router.post('/', authenticateToken, async (req, res) => {
       ) as any[];
 
       if (parent.length === 0) {
-        return res.status(400).json({ message: 'Родительская категория не найдена' });
+        res.status(400).json({ message: 'Родительская категория не найдена' });
+        return;
       }
     }
 
@@ -73,7 +75,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
     const { name, parent_id } = req.body;
 
     if (!name) {
-      return res.status(400).json({ message: 'Название категории обязательно' });
+      res.status(400).json({ message: 'Название категории обязательно' });
+      return;
     }
 
     // Проверяем, что категория существует
@@ -83,7 +86,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
     ) as any[];
 
     if (existingCategory.length === 0) {
-      return res.status(404).json({ message: 'Категория не найдена' });
+      res.status(404).json({ message: 'Категория не найдена' });
+      return;
     }
 
     // Проверяем, что новый родитель существует
@@ -94,7 +98,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
       ) as any[];
 
       if (parent.length === 0) {
-        return res.status(400).json({ message: 'Родительская категория не найдена' });
+        res.status(400).json({ message: 'Родительская категория не найдена' });
+        return;
       }
 
       // Проверяем, что новый родитель не является потомком текущей категории
@@ -109,9 +114,10 @@ router.put('/:id', authenticateToken, async (req, res) => {
       `, [id]) as any[];
 
       if (descendants.some((desc: any) => desc.id === parent_id)) {
-        return res.status(400).json({ 
+        res.status(400).json({ 
           message: 'Нельзя переместить категорию в одну из её подкатегорий' 
         });
+        return;
       }
     }
 
@@ -143,7 +149,8 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     ) as any[];
 
     if (category.length === 0) {
-      return res.status(404).json({ message: 'Категория не найдена' });
+      res.status(404).json({ message: 'Категория не найдена' });
+      return;
     }
 
     await pool.query('DELETE FROM categories WHERE id = ?', [id]);

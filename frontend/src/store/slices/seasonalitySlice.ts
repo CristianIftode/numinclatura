@@ -1,15 +1,15 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 
-interface DatePeriod {
-  startDate: string;
-  endDate: string;
+interface DayRange {
+  startDayOfYear: number;
+  endDayOfYear: number;
 }
 
 interface SeasonalityTemplate {
   id: number;
   name: string;
-  periods: DatePeriod[];
+  periods: DayRange[];
   created_at: string;
   updated_at: string;
 }
@@ -33,7 +33,7 @@ export const fetchSeasonality = createAsyncThunk('seasonality/fetchSeasonality',
 
 export const addSeasonality = createAsyncThunk(
   'seasonality/addSeasonality',
-  async ({ name, periods }: { name: string; periods: DatePeriod[] }) => {
+  async ({ name, periods }: { name: string; periods: DayRange[] }) => {
     const response = await axios.post('/api/seasonality', { name, periods });
     return response.data;
   }
@@ -41,7 +41,7 @@ export const addSeasonality = createAsyncThunk(
 
 export const updateSeasonality = createAsyncThunk(
   'seasonality/updateSeasonality',
-  async ({ id, name, periods }: { id: number; name: string; periods: DatePeriod[] }) => {
+  async ({ id, name, periods }: { id: number; name: string; periods: DayRange[] }) => {
     const response = await axios.put(`/api/seasonality/${id}`, { name, periods });
     return response.data;
   }
