@@ -37,7 +37,7 @@ const AppContent = () => {
         <div className='max-w-[200px] w-full bg-blue-500 flex flex-col justify-between h-screen'>
           <div className='flex flex-col gap-[50px] p-4'>
             <div>
-              <span className='text-white font-bold text-[22px]'>Нуминклатура</span>
+              <span className='text-white font-bold text-[22px]'>Номенклатура</span>
             </div>
             <div>
               <ul className='space-y-2'>
