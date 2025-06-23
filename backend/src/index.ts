@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import authRoutes from './routes/auth';
-import testRoutes from './routes/test';
 import currencyRoutes from './routes/currencies';
 import currencyRatesRoutes from './routes/currencyRates';
 import categoryRoutes from './routes/categories';
@@ -29,7 +28,6 @@ app.use('/api/brands', brandsRoutes);
 app.use('/api/seasonality', seasonalityRoutes);
 app.use('/api/nomenclature', nomenclatureRoutes);
 app.use('/api/country-control', countryControlRoutes);
-app.use('/api', testRoutes);
 
 // Защищенный маршрут для проверки
 app.get('/api/protected', authenticateToken, (req, res) => {
